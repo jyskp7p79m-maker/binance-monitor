@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Binance 15分钟小币监控台</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#121a2c;--line:#26334d;--text:#e8eefc;--muted:#9ba9c5;--green:#34d399;--red:#fb7185;--yellow:#fbbf24;--blue:#7dd3fc}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#090e1b,#101a2e);font:15px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:var(--text)}
+main{max-width:1250px;margin:auto;padding:24px 16px 40px}.top{display:flex;gap:18px;justify-content:space-between;align-items:flex-start;flex-wrap:wrap}
+h1{font-size:26px;margin:0 0 6px}.sub{color:var(--muted);max-width:760px}.status{padding:7px 11px;border:1px solid var(--line);border-radius:99px;color:var(--yellow);font-size:13px}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0}
+.card,.panel{background:rgba(18,26,44,.92);border:1px solid var(--line);border-radius:16px;padding:16px}
+.k{font-size:12px;color:var(--muted)}.v{font-size:23px;font-weight:700;margin-top:4px}.small{font-size:12px;color:var(--muted)}
+.controls{display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px;align-items:end}
+label{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}input,select,button{width:100%;background:#0b1325;border:1px solid #34415c;color:var(--text);border-radius:9px;padding:10px;font:inherit}
+button{cursor:pointer;background:#1d4ed8;border-color:#3b82f6;font-weight:650}button.secondary{background:#172238;border-color:#34415c}button:hover{filter:brightness(1.12)}
+.tablewrap{overflow:auto;margin-top:14px}table{border-collapse:collapse;width:100%;min-width:920px}th,td{text-align:right;padding:12px 10px;border-bottom:1px solid var(--line);white-space:nowrap}th{font-size:12px;color:var(--muted);font-weight:600}th:first-child,td:first-child{text-align:left}
+.sym{font-weight:750}.tag{display:inline-block;padding:3px 7px;border-radius:6px;font-size:11px;background:#27344d;color:#cbd5e1}.tag.good{background:#064e3b;color:#a7f3d0}.tag.warn{background:#713f12;color:#fde68a}.tag.bad{background:#7f1d1d;color:#fecaca}
+.up{color:var(--green)}.down{color:var(--red)}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.bottom{display:grid;grid-template-columns:1.2fr 1fr;gap:12px;margin-top:14px}.log{max-height:250px;overflow:auto}.logitem{padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}.logitem:last-child{border:0}
+.notice{color:var(--muted);font-size:12px;margin-top:14px}.levels{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}.level{padding:10px;background:#0b1325;border-radius:10px}.level b{display:block;font-size:15px;margin-top:4px}
+@media(max-width:800px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.controls{grid-template-columns:1fr 1fr}.controls .wide{grid-column:span 2}.bottom{grid-template-columns:1fr}.v{font-size:20px}h1{font-size:22px}}
+</style>
+</head>
+<body><main>
+<div class="top"><div><h1>Binance · 15分钟小币监控台</h1><div class="sub">实时公开行情｜突破与放量提示｜参考入场、止损、止盈和仓位计算。只读取公开市场数据，不需要 API Key，不会自动下单。</div></div><div class="status" id="connection">● 正在连接行情…</div></div>
+<div class="grid">
+ <div class="card"><div class="k">监控币种</div><div class="v" id="count">3</div><div class="small">USDT 现货交易对</div></div>
+ <div class="card"><div class="k">单笔计划投入</div><div class="v" id="amountCard">20.00 USDT</div><div class="small">可在下方修改</div></div>
+ <div class="card"><div class="k">单笔风险预算</div><div class="v" id="riskCard">1.00 USDT</div><div class="small">不含跳空和额外滑点</div></div>
+ <div class="card"><div class="k">最后行情更新时间</div><div class="v" style="font-size:17px" id="updated">等待数据</div><div class="small">浏览器本地时间</div></div>
+</div>
+<div class="panel">
+ <div class="controls">
+  <div class="wide"><label>监控交易对（逗号分隔，不写 / ）</label><input id="symbols" value="MAGICUSDT,KAIAUSDT,BATUSDT" placeholder="例如 MAGICUSDT,KAIAUSDT,BATUSDT"></div>
+  <div><label>单币投入上限 (USDT)</label><input id="amount" type="number" min="5" step="1" value="20"></div>
+  <div><label>止损幅度 (%)</label><input id="stopPct" type="number" min="1" max="15" step="0.5" value="5"></div>
+  <div><label>手续费率/单边 (%)</label><input id="fee" type="number" min="0" max="1" step="0.01" value="0.1"></div>
+  <div><label>提醒</label><button id="start">应用并监控</button></div>
+ </div>
+ <div class="actions"><button class="secondary" id="notify">开启浏览器通知</button><button class="secondary" id="sound">开启提示音</button><button class="secondary" id="export">导出当前数据 CSV</button><a href="https://www.binance.com/en/markets/spot" target="_blank" rel="noreferrer" style="color:var(--blue);align-self:center">打开 Binance 现货市场 ↗</a></div>
+</div>
+<div class="panel" style="margin-top:14px">
+ <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><b>实时监控列表</b><div class="small">信号只在 15m K 线收盘确认后触发；价格和盘口可能快速变化。</div></div><div class="small">突破规则：收盘价高于此前 8 根已收盘 K 线高点，且成交额 ≥ 其平均值的 1.5 倍</div></div>
+ <div class="tablewrap"><table><thead><tr><th>币种</th><th>最新价 (USDT)</th><th>24h 涨跌</th><th>15m 信号</th><th>参考入场价</th><th>止损参考</th><th>止盈 +8%</th><th>止盈 +15%</th><th>投入数量参考</th></tr></thead><tbody id="rows"><tr><td colspan="9" style="text-align:center;color:var(--muted)">正在载入行情…</td></tr></tbody></table></div>
+</div>
+<div class="bottom">
+ <div class="panel"><b>选中币种价格计划</b><div class="small">点击上方任意币种名称查看详细计算。</div><div id="details" class="levels"><div class="level"><span class="k">状态</span><b>等待行情</b></div></div></div>
+ <div class="panel"><b>信号与连接日志</b><div class="log" id="log"><div class="logitem">等待连接 Binance 公开行情 WebSocket…</div></div></div>
+</div>
+<div class="notice">风险说明：这是交易辅助原型，不是投资建议或盈利保证。参考入场价不是保证成交的限价单；止损不是保证成交价。小币可能存在低流动性、价差、滑点、交易对下架或突然暴跌风险。请核对交易对是否仍可交易、实际手续费及最小下单金额。若页面显示断线或行情延迟，请勿依赖信号下单。WebSocket 连接受网络和地区访问限制。</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let ws=null, symbols=[], data={}, notifyOn=false, soundOn=false, selected=null, lastSignals={}, reconnectTimer=null, lastTicker={};
+const fmt=(n,d=8)=>Number.isFinite(n)?n.toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:0}):'—';
+const pct=n=>Number.isFinite(n)?(n>=0?'+':'')+n.toFixed(2)+'%':'—';
+function log(msg){const el=$('log'), div=document.createElement('div');div.className='logitem';div.textContent=new Date().toLocaleTimeString()+' · '+msg;el.prepend(div);while(el.children.length>80)el.lastChild.remove()}
+function setStatus(text,color='var(--yellow)'){$('connection').textContent='● '+text;$('connection').style.color=color}
+function beep(){if(!soundOn)return;try{const c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=880;g.gain.value=.08;o.start();o.stop(c.currentTime+.18)}catch(e){}}
+async function getKlines(sym){const urls=[
+'https://data-api.binance.vision/api/v3/klines?symbol='+encodeURIComponent(sym)+'&interval=15m&limit=30',
+'https://api.binance.com/api/v3/klines?symbol='+encodeURIComponent(sym)+'&interval=15m&limit=30'
+];let last;for(const url of urls){try{const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const j=await r.json();if(!Array.isArray(j))throw Error(JSON.stringify(j));return j}catch(e){last=e}}throw Error('所有K线接口均不可访问：'+(last?.message||'未知错误'))}
+function analyze(sym,arr){const candles=arr.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5],q:+k[7],closed:(+k[6] < Date.now())}));const live=candles[candles.length-1];const closed=candles.filter(k=>k.closed);if(closed.length<9)return null;const signalBar=closed[closed.length-1],prev=closed.slice(-9,-1);const high=Math.max(...prev.map(k=>k.h)),avgq=prev.reduce((s,k)=>s+k.q,0)/prev.length;const volRatio=avgq>0?signalBar.q/avgq:0;const entry=high*1.002,stop=entry*(1-(+$('stopPct').value||5)/100),tp8=entry*1.08,tp15=entry*1.15;let signal='等待突破',cls='tag';if(signalBar.c>high&&volRatio>=1.5){signal='放量突破确认';cls='tag good'}else if(signalBar.c>high*.995){signal='接近突破';cls='tag warn'}else if(signalBar.c<high*.95){signal='远离触发位';cls='tag'}const amount=Math.max(0,+$('amount').value||20);const qty=amount/entry;const risk=amount*(entry-stop)/entry;return {sym,price:live.c,change:lastTicker[sym]?.change,high,avgq,volRatio,signal,cls,entry,stop,tp8,tp15,amount,qty,risk,barClosed:true,bar:signalBar,history:closed}}
+function render(){const body=$('rows');body.innerHTML='';let found=0;for(const sym of symbols){const d=data[sym];if(!d)continue;found++;const tr=document.createElement('tr');const ch=d.change;tr.innerHTML=`<td><button class="secondary sym" style="width:auto;padding:5px 8px" data-sym="${sym}">${sym.replace('USDT','')} <span class="small">/USDT</span></button></td><td>${fmt(d.price, d.price<1?8:4)}</td><td class="${ch>=0?'up':'down'}">${pct(ch)}</td><td><span class="${d.cls}">${d.signal}</span><div class="small">成交额/均值 ${d.volRatio.toFixed(2)}x</div></td><td>${fmt(d.entry,d.entry<1?8:4)}</td><td class="down">${fmt(d.stop,d.stop<1?8:4)}</td><td class="up">${fmt(d.tp8,d.tp8<1?8:4)}</td><td class="up">${fmt(d.tp15,d.tp15<1?8:4)}</td><td>${fmt(d.qty,2)} 枚<div class="small">约 ${fmt(d.amount,2)}U</div></td>`;body.appendChild(tr);tr.querySelector('button').onclick=()=>showDetails(sym);if(d.signal==='放量突破确认'){const key=sym+':'+d.bar.t;if(!lastSignals[key]){lastSignals[key]=true;log(sym+' 出现15分钟放量突破确认（仍需检查回踩和盘口）');if(notifyOn&&'Notification'in window&&Notification.permission==='granted')new Notification('Binance 行情提醒',{body:sym+' 15分钟放量突破确认，参考触发价 '+fmt(d.entry)});beep()}}}
+$('count').textContent=symbols.length;$('amountCard').textContent=fmt(+$('amount').value||20,2)+' USDT';$('riskCard').textContent=fmt((+$('amount').value||20)*(+$('stopPct').value||5)/100,2)+' USDT';if(!found)body.innerHTML='<tr><td colspan="9" style="text-align:center;color:var(--muted)">等待行情数据或交易对不可用</td></tr>';if(selected&&data[selected])showDetails(selected)}
+function showDetails(sym){selected=sym;const d=data[sym];if(!d)return;const f=(n)=>fmt(n,n<1?8:4);$('details').innerHTML=`<div class="level"><span class="k">最新价</span><b>${f(d.price)} U</b></div><div class="level"><span class="k">突破参考价</span><b>${f(d.entry)} U</b></div><div class="level"><span class="k">止损参考价</span><b class="down">${f(d.stop)} U</b></div><div class="level"><span class="k">止盈 +8%</span><b class="up">${f(d.tp8)} U</b></div><div class="level"><span class="k">止盈 +15%</span><b class="up">${f(d.tp15)} U</b></div><div class="level"><span class="k">投入数量</span><b>${fmt(d.qty,4)} 枚</b></div><div class="level"><span class="k">价格止损风险</span><b>${fmt(d.risk,2)} U</b></div><div class="level"><span class="k">突破位</span><b>${f(d.high)} U</b></div><div class="level"><span class="k">成交额比</span><b>${d.volRatio.toFixed(2)}x</b></div><div class="level"><span class="k">手续费估算（买+卖）</span><b>${fmt(d.amount*(+$('fee').value||0)/100*2,4)} U</b></div><div class="level"><span class="k">含费用止损粗估</span><b class="down">${fmt(d.risk+d.amount*(+$('fee').value||0)/100*2,4)} U</b></div><div class="level"><span class="k">信号</span><b>${d.signal}</b></div>`}
+async function initialLoad(){let ok=0;for(const s of symbols){try{const a=await getKlines(s);data[s]=analyze(s,a);ok++;log(s+' 已载入15分钟K线')}catch(e){log(s+' 行情接口失败：'+e.message)}}render();if(ok===0){setStatus('REST行情接口无法访问','var(--red)');log('请检查是否通过本地浏览器打开文件、网络能否访问 Binance 公共行情，或尝试另一网络。')}else{log('REST行情初始化完成：'+ok+'/'+symbols.length+' 个交易对')}}
+let wsEndpointIndex=0, wsAttempt=0;
+const wsBases=['wss://stream.binance.com:443/stream?streams=','wss://stream.binance.com:9443/stream?streams=','wss://data-stream.binance.vision/stream?streams='];
+function connect(){if(ws){try{ws.onclose=null;ws.close()}catch(e){}}if(!symbols.length)return;const streams=symbols.flatMap(s=>[s.toLowerCase()+'@kline_15m',s.toLowerCase()+'@ticker']);const url=wsBases[wsEndpointIndex%wsBases.length]+streams.join('/');setStatus('正在连接备用地址 '+(wsEndpointIndex%wsBases.length+1)+'/'+wsBases.length+'…');wsAttempt++;ws.onopen=()=>{wsAttempt=0;setStatus('实时连接正常','var(--green)');log('WebSocket 已连接；订阅 '+symbols.join(', '))};ws.onmessage=e=>{try{const msg=JSON.parse(e.data),d=msg.data;if(d.e==='24hrTicker'){lastTicker[d.s]={change:+d.P};if(data[d.s]){data[d.s].change=+d.P;data[d.s].price=+d.c}render()}else if(d.e==='kline'){const k=d.k,s=d.s;if(!data[s])return;data[s].price=+k.c;if(k.x){getKlines(s).then(a=>{data[s]=analyze(s,a);render()}).catch(()=>{})}else{data[s].bar={t:k.t,o:+k.o,h:+k.h,l:+k.l,c:+k.c,v:+k.v,q:+k.q,closed:false};data[s].price=+k.c} $('updated').textContent=new Date().toLocaleTimeString();render()}}catch(err){}};ws.onerror=()=>{setStatus('实时连接失败，切换备用地址…','var(--red)');log('WebSocket 连接失败：'+url);wsEndpointIndex=(wsEndpointIndex+1)%wsBases.length};ws.onclose=()=>{if(reconnectTimer)clearTimeout(reconnectTimer);reconnectTimer=setTimeout(()=>{if(wsAttempt<3)connect();else{wsAttempt=0;wsEndpointIndex=(wsEndpointIndex+1)%wsBases.length;log('已尝试多个行情连接地址；检查网络或地区访问限制');connect()}},1800)}}
+function apply(){const raw=$('symbols').value.toUpperCase().split(',').map(s=>s.trim().replace('/','')).filter(Boolean);symbols=[...new Set(raw)].filter(s=>/^[A-Z0-9]{5,20}USDT$/.test(s));if(!symbols.length){alert('请输入有效 USDT 交易对，例如 MAGICUSDT');return}if(symbols.length>12){alert('第一版最多监控12个币种，请减少列表');return}data={};lastTicker={};selected=null;$('count').textContent=symbols.length;initialLoad().then(connect)}
+$('start').onclick=apply;
+$('notify').onclick=async()=>{if(!('Notification'in window)){alert('当前浏览器不支持通知');return}const p=await Notification.requestPermission();notifyOn=p==='granted';$('notify').textContent=notifyOn?'浏览器通知已开启':'未获得通知权限';log(notifyOn?'已开启浏览器通知':'浏览器通知权限未开启')};
+$('sound').onclick=()=>{soundOn=!soundOn;$('sound').textContent=soundOn?'提示音已开启':'开启提示音';if(soundOn)beep()};
+$('export').onclick=()=>{const head=['symbol','price','24h_change_pct','signal','entry_reference','stop_reference','tp8','tp15','amount_usdt','quantity','volume_ratio'];const lines=[head.join(',')];for(const s of symbols){const d=data[s];if(d)lines.push([s,d.price,d.change,d.signal,d.entry,d.stop,d.tp8,d.tp15,d.amount,d.qty,d.volRatio].map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(','))}const blob=new Blob(['\ufeff'+lines.join('\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='binance-monitor.csv';a.click();URL.revokeObjectURL(a.href)};
+$('stopPct').onchange=()=>{for(const s of symbols)if(data[s]){data[s].stop=data[s].entry*(1-(+$('stopPct').value||5)/100);data[s].risk=data[s].amount*(+$('stopPct').value||5)/100}render()};
+$('amount').onchange=()=>{for(const s of symbols)if(data[s]){data[s].amount=+$('amount').value||20;data[s].qty=data[s].amount/data[s].entry;data[s].risk=data[s].amount*(+$('stopPct').value||5)/100}render()};
+$('fee').onchange=render;
+apply();
+</script></body></html>
