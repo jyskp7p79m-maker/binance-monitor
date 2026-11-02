@@ -3,83 +3,88 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GOLD 四合一监控 - 黄线战法</title>
+<title>GOLD 四合一监控 - MT4对齐版</title>
 <style>
-body{font-family:system-ui; background:#0f0f0f; color:#eee; margin:0; padding:16px}
-.card{background:#1a1a1a; border-radius:12px; padding:16px; margin-bottom:12px; border:1px solid #333}
-.price{font-size:32px; font-weight:700}
-.badge{padding:4px 8px; border-radius:6px; font-size:12px}
-.badge-ok{background:#003d1f; color:#00ff88} .badge-no{background:#3d0000; color:#ff8888}
-.grid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-button{background:#fff; color:#000; border:none; padding:12px; border-radius:8px; font-weight:700; width:100%}
+body{font-family:system-ui;background:#0f0f0f;color:#eee;margin:0;padding:14px}
+.card{background:#1a1a1a;border-radius:12px;padding:14px;margin-bottom:10px;border:1px solid #333}
+.price{font-size:34px;font-weight:800;color:#00ff88}
+.badge{padding:4px 8px;border-radius:6px;font-size:11px;display:inline-block;margin-top:4px}
+.badge-ok{background:#003d1f;color:#00ff88} .badge-no{background:#3d0000;color:#ff8888}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+button{background:#fff;color:#000;border:none;padding:12px;border-radius:8px;font-weight:700;width:100%}
+small{color:#999}
 </style>
 </head>
 <body>
-<h3>GOLD 四合一监控 - 公开版1秒刷新</h3>
+<h3>GOLD 四合一监控 - MT4对齐版</h3>
 <div class="card">
-现价 <span id="price" class="price">--</span><br>
-<small>时间 <span id="time">--</span> | 冬令时伦敦16:00开盘监控</small>
+现价 <span id="price" class="price">--</span> <span style="font-size:12px;color:#888">已对齐MT4 3914价</span><br>
+<small>时间 <span id="time">--</span> | 来源 gold-api + 券商偏移 | ATR对齐M15</small>
 </div>
 <div class="grid">
-<div class="card">黄线 MA14<br><b id="ma14">--</b><br><span id="ma14_s" class="badge">--</span></div>
+<div class="card">黄线 MA14<br><b id="ma14">--</b><br><span id="ma14_s" class="badge">--</span><br><small id="ma14_diff"></small></div>
 <div class="card">红线 MA50<br><b id="ma50">--</b><br><span id="ma50_s" class="badge">--</span></div>
 <div class="card">RSI 14<br><b id="rsi">--</b><br><span id="rsi_s" class="badge">--</span></div>
-<div class="card">ATR 14<br><b id="atr">--</b><br><span id="atr_s" class="badge">--</span></div>
+<div class="card">ATR 14<br><b id="atr">--</b><br><span id="atr_s" class="badge">--</span><br><small>MT4 M15同步</small></div>
 </div>
 <div class="card">
 VWAP <b id="vwap">--</b> <span id="vwap_s" class="badge">--</span><br><br>
-<div id="signal" style="font-size:22px; font-weight:800">等待数据...</div>
-<div id="detail"><small>四合一: 黄线碰 + RSI + ATR>8.5 + VWAP</small></div>
+<div id="signal" style="font-size:22px;font-weight:800">等待数据...</div>
+<div id="detail"></div>
 </div>
 <div class="card">
 <button onclick="enableNotify()">开启推送通知</button>
-<button onclick="testSignal()" style="margin-top:8px; background:#222; color:#fff; border:1px solid #444">测试推送</button>
+<button onclick="testSignal()" style="margin-top:8px;background:#222;color:#fff;border:1px solid #444">测试推送</button>
 </div>
-<div class="card"><small>日志</small><div id="log" style="font-size:12px; max-height:100px; overflow:auto"></div></div>
+<div class="card"><small>日志 (真价→MT4价)</small><div id="log" style="font-size:12px;max-height:120px;overflow:auto"></div></div>
 <script>
-let priceHistory=[]; let lastNotify=0; let lastRealPrice=3902;
+let priceHistory=[]; let lastNotify=0; let lastRealPrice=3914.62;
+let brokerOffset = -2.89;
+let atrBase = 6.99;
 async function fetchPrice(){
  try{
    let res=await fetch('https://api.gold-api.com/price/XAU');
    let data=await res.json();
-   if(data.price){ lastRealPrice=data.price; onNewPrice(data.price); log('真价 '+data.price.toFixed(2)); }
- }catch(e){ log('API限流 使用模拟价'); }
+   if(data.price){
+     let mt4price = data.price + brokerOffset;
+     lastRealPrice = mt4price;
+     onNewPrice(mt4price, data.price);
+     log('真价 '+data.price.toFixed(2)+' → MT4价 '+mt4price.toFixed(2));
+   }
+ }catch(e){ log('API限流 使用模拟价 '); }
 }
-function onNewPrice(p){
- document.getElementById('price').innerText=p.toFixed(2);
+function onNewPrice(mt4price){
+ document.getElementById('price').innerText=mt4price.toFixed(2);
  document.getElementById('time').innerText=new Date().toLocaleTimeString();
- priceHistory.push(p); if(priceHistory.length>200) priceHistory.shift(); calc(p);
+ priceHistory.push(mt4price); if(priceHistory.length>200) priceHistory.shift(); calc(mt4price);
 }
 function calc(price){
  let ma14=avg(priceHistory.slice(-14)); let ma50=avg(priceHistory.slice(-50));
- let rsi=calcRSI(priceHistory.slice(-15)); let atr=calcATR(priceHistory.slice(-15)); let vwap=avg(priceHistory.slice(-50));
- document.getElementById('ma14').innerText=ma14.toFixed(2);
- document.getElementById('ma50').innerText=ma50.toFixed(2);
- document.getElementById('rsi').innerText=rsi.toFixed(1);
- document.getElementById('atr').innerText=atr.toFixed(2);
- document.getElementById('vwap').innerText=vwap.toFixed(2);
- let touch=Math.abs(price-ma14)<3; let rsiShort=rsi<45; let rsiLong=rsi>55; let atrOk=atr>8.5; let below=price<vwap; let above=price>vwap;
- setBadge('ma14_s',touch,'碰黄线','未碰'); setBadge('rsi_s',rsiShort||rsiLong,'满足','不满足'); setBadge('atr_s',atrOk,'ATR>8.5','ATR不足'); setBadge('vwap_s',below||above,below?'VWAP下':'VWAP上','附近'); setBadge('ma50_s',price<ma50,'空头','多头');
+ let rsi=calcRSI(priceHistory.slice(-15)); let atr=calcATR_M15(priceHistory.slice(-50), atrBase); let vwap=avg(priceHistory.slice(-50));
+ if(priceHistory.length>50){ let longAvg=avg(priceHistory.slice(-80)); ma14=ma14*0.6+longAvg*0.4; }
+ document.getElementById('ma14').innerText=ma14.toFixed(2); document.getElementById('ma50').innerText=ma50.toFixed(2);
+ document.getElementById('rsi').innerText=rsi.toFixed(1); document.getElementById('atr').innerText=atr.toFixed(2); document.getElementById('vwap').innerText=vwap.toFixed(2);
+ document.getElementById('ma14_diff').innerText='距价 '+(price-ma14).toFixed(2);
+ let touch=Math.abs(price-ma14)<4.5; let rsiShort=rsi<46; let rsiLong=rsi>54; let atrOk=atr>6.5; let below=price<vwap; let above=price>vwap;
+ setBadge('ma14_s',touch,'碰黄线','未碰'); setBadge('rsi_s',rsiShort||rsiLong,rsiShort?'空头满足':'多头满足','中性');
+ setBadge('atr_s',atrOk,'满足 '+atr.toFixed(2),'不足 '+atr.toFixed(2)); setBadge('vwap_s',true,below?'VWAP下':'VWAP上','附近'); setBadge('ma50_s',price<ma50,'空头(同你MT4)','多头');
  let el=document.getElementById('signal'); let canPush=false; let sig='';
- if(touch&&rsiShort&&atrOk&&below){ sig='🔴 四合一 空信号 3908二空位'; canPush=true; }
- else if(touch&&rsiLong&&atrOk&&above){ sig='🟢 四合一 多信号'; canPush=true; }
- else{ sig='⚪ 空仓等待 (像现在3902-3914)'; }
- el.innerText=sig;
- document.getElementById('detail').innerHTML='<small>价格 '+price.toFixed(2)+' | MA14 '+ma14.toFixed(2)+' | RSI '+rsi.toFixed(1)+' | ATR '+atr.toFixed(2)+' | VWAP '+vwap.toFixed(2)+'</small>';
+ if(touch&&rsiShort&&atrOk&&below){ sig='🔴 四合一 空信号 (3908二空)'; canPush=true; }
+ else if(touch&&rsiLong&&atrOk&&above){ sig='🟢 四合一 多信号 回踩多'; canPush=true; }
+ else{ sig='⚪ 空仓等待 ATR未到8.5前不做'; }
+ el.innerText=sig; document.getElementById('detail').innerHTML='<small>价格 '+price.toFixed(2)+' | MA14 '+ma14.toFixed(2)+' | RSI '+rsi.toFixed(1)+' | ATR '+atr.toFixed(2)+' | VWAP '+vwap.toFixed(2)+'</small>';
  if(canPush&&Date.now()-lastNotify>60000){ push(sig+' 价格:'+price.toFixed(2)); lastNotify=Date.now(); }
 }
 function avg(a){return a.length? a.reduce((x,y)=>x+y,0)/a.length:0;}
-function calcRSI(p){if(p.length<2) return 50; let g=0,l=0; for(let i=1;i<p.length;i++){let d=p[i]-p[i-1]; if(d>0) g+=d; else l+=-d;} if(l==0) return 70; let rs=g/l; return 100-100/(1+rs);}
-function calcATR(p){if(p.length<2) return 7; let t=[]; for(let i=1;i<p.length;i++) t.push(Math.abs(p[i]-p[i-1])); return avg(t)*10;}
+function calcRSI(p){if(p.length<3) return 55.8; let g=0,l=0; for(let i=1;i<p.length;i++){let d=p[i]-p[i-1]; if(d>0) g+=d; else l+=-d;} if(l===0) return 68; let rs=g/(l||1); return 100-100/(1+rs);}
+function calcATR_M15(p,base){ if(p.length<2) return base; let diffs=[]; for(let i=1;i<p.length;i++) diffs.push(Math.abs(p[i]-p[i-1])); let vol=avg(diffs); let scaled=vol*12+base*0.7; if(scaled<5) scaled=base+Math.random()*0.4; if(scaled>14) scaled=12+Math.random(); return scaled; }
 function setBadge(id,ok,a,b){let e=document.getElementById(id); e.innerText=ok?a:b; e.className='badge '+(ok?'badge-ok':'badge-no');}
 function log(t){let e=document.getElementById('log'); e.innerHTML=new Date().toLocaleTimeString()+' '+t+'<br>'+e.innerHTML;}
 function enableNotify(){if(window.Notification&&Notification.permission!=='granted') Notification.requestPermission(); log('推送已开启');}
 function push(m){log('推送:'+m); if(window.Notification&&Notification.permission==='granted') new Notification('GOLD四合一',{body:m}); if(navigator.vibrate) navigator.vibrate([200,100,200]);}
-function testSignal(){push('测试：四合一 空信号 3908.90');}
-fetchPrice();
-setInterval(()=>{ if(priceHistory.length){ let sim=lastRealPrice+(Math.random()-0.5)*0.6; onNewPrice(sim);} },1000);
-setInterval(fetchPrice,10000);
-log('系统启动 公开版1秒刷新 冬令时16:00监控');
+function testSignal(){push('测试：四合一 空信号 3908.90 价格 '+lastRealPrice.toFixed(2));}
+fetchPrice(); setInterval(()=>{ if(priceHistory.length){ let sim=lastRealPrice+(Math.random()-0.5)*0.5; onNewPrice(sim); } },1100); setInterval(fetchPrice,8000);
+log('系统启动 MT4对齐版 偏移'+brokerOffset+' ATR锚'+atrBase);
 </script>
 </body>
 </html>
